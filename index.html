@@ -9,8 +9,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@700&family=Figtree:wght@400;600&family=JetBrains+Mono:wght@600&display=swap">
 <style>
-/* Layout: uma coluna de telemóvel, tema + forca no topo, palavra no meio, teclado QWERTY em baixo.
-   Cor: azul-ardósia frio com verde-azulado como acento; vermelho só para erros. */
+/* Layout: uma coluna de telemóvel, jogador + Hall of Fame no topo, forca, palavra e teclado.
+   Cor: azul-ardósia frio com verde-azulado como acento; vermelho só para erros e derrotas. */
 :root {
   --bg: #eef2f5;
   --surface: #ffffff;
@@ -22,6 +22,7 @@
   --good: #17703f;
   --bad: #b3261e;
   --key: #e1e8ed;
+  --scrim: rgba(8, 16, 22, 0.62);
   --font-display: "Bricolage Grotesque", "Trebuchet MS", system-ui, sans-serif;
   --font-body: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-letter: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
@@ -38,6 +39,7 @@
     --good: #5fd08f;
     --bad: #ff7b72;
     --key: #1f2f39;
+    --scrim: rgba(0, 0, 0, 0.7);
     color-scheme: dark;
   }
 }
@@ -52,6 +54,7 @@
   --good: #5fd08f;
   --bad: #ff7b72;
   --key: #1f2f39;
+  --scrim: rgba(0, 0, 0, 0.7);
   color-scheme: dark;
 }
 
@@ -72,9 +75,10 @@ body {
 }
 header {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 8px 12px;
 }
 h1 {
   font-family: var(--font-display);
@@ -83,9 +87,19 @@ h1 {
   margin: 0;
   letter-spacing: -0.01em;
 }
+.acoes { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+#jNome {
+  display: inline-block;
+  max-width: 9.5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
 .placar {
   display: flex;
-  gap: 14px;
+  flex-wrap: wrap;
+  gap: 4px 16px;
   font-size: 0.8125rem;
   color: var(--muted);
 }
@@ -95,12 +109,13 @@ h1 {
   font-variant-numeric: tabular-nums;
   margin-left: 4px;
 }
-
-.temas {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+.nota {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--bad);
 }
+
+.temas { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip {
   font: inherit;
   font-size: 0.875rem;
@@ -127,11 +142,7 @@ h1 {
   border-radius: 14px;
   padding: 12px 16px;
 }
-.palco svg {
-  width: 112px;
-  height: auto;
-  flex: none;
-}
+.palco svg { width: 112px; height: auto; flex: none; }
 .forca-linha { fill: none; stroke: var(--muted); stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; }
 .forca-boneco { fill: none; stroke: var(--bad); stroke-width: 5; stroke-linecap: round; }
 .forca-boneco[hidden] { display: none; }
@@ -214,23 +225,108 @@ h1 {
   border: 1px solid var(--line);
   border-radius: 10px;
   height: 46px;
+  padding-inline: 16px;
   cursor: pointer;
 }
 .nova.destaque { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
 
-.chip:focus-visible, .tecla:focus-visible, .nova:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+/* Janelas: início de sessão e Hall of Fame */
+.sobre {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--scrim);
+  padding: 16px;
+  padding-top: calc(16px + env(safe-area-inset-top, 0px));
+  padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+}
+.caixa {
+  background: var(--surface);
+  color: var(--fg);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 20px;
+  width: 100%;
+  max-width: 420px;
+  max-height: 100%;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.caixa.larga { max-width: 520px; }
+.caixa h2 { font-family: var(--font-display); font-size: 1.5rem; line-height: 1.1; margin: 0; text-wrap: balance; }
+.caixa p { margin: 0; font-size: 0.9375rem; color: var(--muted); }
+.caixa label { font-size: 0.8125rem; font-weight: 600; letter-spacing: 0.02em; }
+.caixa-topo { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+input[type="text"] {
+  font: inherit;
+  font-size: 1rem;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px;
+  width: 100%;
+  box-sizing: border-box;
+}
+.erro { color: var(--bad) !important; min-height: 1.3em; }
+.recentes { display: flex; flex-direction: column; gap: 6px; }
+.recentes[hidden] { display: none; }
+.recentes-l { font-size: 0.8125rem; color: var(--muted); }
+.lista-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.botoes { display: flex; gap: 8px; }
+.botoes .nova { flex: 1; }
+
+.modo { font-size: 0.8125rem !important; }
+.campeoes { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.campeao {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.campeao-l { font-size: 0.75rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.campeao-n { font-family: var(--font-display); font-size: 2rem; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.campeao-n.vit { color: var(--good); }
+.campeao-n.der { color: var(--bad); }
+.campeao-j { font-size: 0.9375rem; overflow-wrap: anywhere; }
+.tabela-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 0.9375rem; }
+th, td { padding: 8px 6px; text-align: right; border-bottom: 1px solid var(--line); }
+th { font-size: 0.75rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+th:nth-child(1), td:nth-child(1), th:nth-child(2), td:nth-child(2) { text-align: left; }
+td:nth-child(1) { color: var(--muted); width: 2.2em; }
+td:nth-child(2) { overflow-wrap: anywhere; min-width: 7rem; }
+tr.eu td { background: var(--key); }
+.tag-eu { font-size: 0.75rem; color: var(--accent); font-weight: 600; margin-left: 4px; }
+
+.chip:focus-visible, .tecla:focus-visible, .nova:focus-visible, input:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 </style>
 </head>
 <body>
 
-<main class="app" lang="pt-PT">
+<main class="app" id="app" lang="pt-PT">
   <header>
     <h1>Forca</h1>
-    <div class="placar" aria-label="Placar">
-      <span>Vitórias<b id="vit">0</b></span>
-      <span>Derrotas<b id="der">0</b></span>
+    <div class="acoes">
+      <button class="chip" id="btnHall" type="button">Hall of Fame</button>
+      <button class="chip" id="btnJogador" type="button" aria-label="Trocar de jogador"><span id="jNome"></span> ▾</button>
     </div>
   </header>
+  <div class="placar" aria-label="As tuas estatísticas">
+    <span>Vitórias<b id="vit">0</b></span>
+    <span>Derrotas<b id="der">0</b></span>
+    <span>Sequência<b id="seq">0</b></span>
+  </div>
+  <p class="nota" id="nota" role="status" hidden></p>
 
   <div class="temas" id="temas" role="group" aria-label="Tema"></div>
 
@@ -258,6 +354,43 @@ h1 {
   <button class="nova" id="nova" type="button">Nova palavra</button>
 </main>
 
+<div class="sobre" id="login" role="dialog" aria-modal="true" aria-labelledby="loginT">
+  <form class="caixa" id="formLogin" autocomplete="off">
+    <h2 id="loginT">Quem vai jogar?</h2>
+    <p>Escolhe o teu nome de jogador. Se o nome já existir, continuas com as vitórias e derrotas dele.</p>
+    <label for="nome">Nome de jogador</label>
+    <input type="text" id="nome" name="nome" maxlength="16" autocapitalize="words" enterkeyhint="go" spellcheck="false" placeholder="Ex.: Miguel">
+    <p class="erro" id="loginErro" role="alert"></p>
+    <div class="recentes" id="recentes" hidden>
+      <span class="recentes-l">Jogadores existentes</span>
+      <div class="lista-chips" id="recentesLista"></div>
+    </div>
+    <div class="botoes">
+      <button class="nova" id="cancelaLogin" type="button" hidden>Cancelar</button>
+      <button class="nova destaque" type="submit">Entrar</button>
+    </div>
+  </form>
+</div>
+
+<div class="sobre" id="hall" role="dialog" aria-modal="true" aria-labelledby="hallT" hidden>
+  <div class="caixa larga">
+    <div class="caixa-topo">
+      <h2 id="hallT">Hall of Fame</h2>
+      <button class="chip" id="fechaHall" type="button">Fechar</button>
+    </div>
+    <p class="modo" id="modo"></p>
+    <div class="campeoes" id="campeoes"></div>
+    <div class="temas" id="ordem" role="group" aria-label="Ordenar por"></div>
+    <div class="tabela-wrap">
+      <table id="tabela">
+        <thead><tr><th>#</th><th>Jogador</th><th>Vit.</th><th>Der.</th><th>%</th></tr></thead>
+        <tbody id="corpo"></tbody>
+      </table>
+    </div>
+    <p id="vazio" hidden>Ainda ninguém terminou um jogo. Joga uma palavra para entrares no ranking.</p>
+  </div>
+</div>
+
 <script>
 (function () {
   var MAX = 6;
@@ -271,10 +404,16 @@ h1 {
   };
   var ALEATORIO = "Aleatório";
   var LINHAS = ["QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM"];
+  var LS_JOGADORES = "forca.jogadores", LS_ATUAL = "forca.atual";
 
   var tema = ALEATORIO, palavra = "", ultima = "", temaReal = "", ultimoTema = "";
   var sacoTemas = [], sacosPalavras = {};
-  var certas = {}, erradas = [], fim = null, vit = 0, der = 0;
+  var certas = {}, erradas = [], fim = null;
+
+  // Jogadores: id -> {nome, vitorias, derrotas, sequencia, melhor}
+  var jogadores = {}, jogadorId = null, jogadorNome = "";
+  var db = null, semPermissao = false, filaDb = Promise.resolve();
+  var ordem = "vitorias";
 
   function $(id) { return document.getElementById(id); }
   function rand(n) { return Math.floor(Math.random() * n); }
@@ -282,6 +421,235 @@ h1 {
   function base(ch) { return ch.normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase(); }
   function letras() { return Array.from(palavra); }
 
+  /* ---------- Armazenamento local (reserva) ---------- */
+  function lsGet(k) { try { return window.localStorage.getItem(k); } catch (e) { return null; } }
+  function lsSet(k, v) { try { window.localStorage.setItem(k, v); } catch (e) {} }
+
+  function num(x) { x = Number(x); return isFinite(x) && x > 0 ? Math.floor(x) : 0; }
+  function limpa(d, id) {
+    if (!d || typeof d !== "object") return null;
+    return { nome: String(d.nome || id).slice(0, 24), vitorias: num(d.vitorias), derrotas: num(d.derrotas), sequencia: num(d.sequencia), melhor: num(d.melhor) };
+  }
+  function carregaLocal() {
+    var out = {};
+    try {
+      var o = JSON.parse(lsGet(LS_JOGADORES) || "{}");
+      Object.keys(o).forEach(function (k) { var j = limpa(o[k], k); if (j) out[k] = j; });
+    } catch (e) {}
+    return out;
+  }
+  function guardaLocal() { lsSet(LS_JOGADORES, JSON.stringify(jogadores)); }
+
+  /* ---------- Ranking partilhado (só quando o Claude o disponibiliza) ---------- */
+  function iniciaDb() {
+    if (!(window.claude && typeof window.claude.use === "function")) return;
+    window.claude.use("db").then(function (d) {
+      if (!d) return;
+      db = d;
+      d.collection("jogadores").onSnapshot(function (snap) {
+        var m = {};
+        snap.docs.forEach(function (doc) { var j = limpa(doc.data(), doc.id); if (j) m[doc.id] = j; });
+        jogadores = m;
+        guardaLocal();
+        atualizaPlacar();
+        renderRecentes();
+        if (!$("hall").hidden) renderHall();
+      }, function () { db = null; renderModo(); });
+    }).catch(function () { db = null; });
+  }
+
+  function aplica(j, resultado) {
+    if (resultado === "ganhou") { j.vitorias++; j.sequencia++; if (j.sequencia > j.melhor) j.melhor = j.sequencia; }
+    else { j.derrotas++; j.sequencia = 0; }
+    return j;
+  }
+
+  function mostraNota(txt) {
+    var n = $("nota");
+    n.textContent = txt || "";
+    n.hidden = !txt;
+  }
+
+  function registar(resultado) {
+    var id = jogadorId, nome = jogadorNome;
+    if (!id) return;
+    var atual = jogadores[id] ? Object.assign({}, jogadores[id]) : { nome: nome, vitorias: 0, derrotas: 0, sequencia: 0, melhor: 0 };
+    jogadores[id] = aplica(atual, resultado);
+    guardaLocal();
+    atualizaPlacar();
+    if (!db || semPermissao) return;
+    // Lê o valor mais recente do ranking partilhado e grava por cima, um pedido de cada vez
+    filaDb = filaDb.then(function () {
+      var ref = db.doc("jogadores/" + id);
+      return ref.get().then(function (snap) {
+        var corpo = snap.exists ? limpa(snap.data(), id) : { nome: nome, vitorias: 0, derrotas: 0, sequencia: 0, melhor: 0 };
+        aplica(corpo, resultado);
+        corpo.atualizado = Date.now();
+        return ref.set(corpo);
+      });
+    }).then(function () { mostraNota(""); }).catch(function (e) {
+      if (e && e.code === "invalid_argument") {
+        semPermissao = true;
+        mostraNota("Sem permissão para gravar no ranking partilhado. Os resultados ficam só neste dispositivo.");
+      } else {
+        mostraNota("Não foi possível gravar no ranking partilhado. O resultado ficou só neste dispositivo.");
+      }
+      renderModo();
+    });
+  }
+
+  /* ---------- Jogador ---------- */
+  function normNome(raw) { return String(raw || "").replace(/\s+/g, " ").trim(); }
+  function slug(n) { return n.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9_-]/g, ""); }
+  function valida(n) {
+    if (n.length < 2 || n.length > 16) return "O nome deve ter entre 2 e 16 caracteres.";
+    if (!/^[\p{L}\p{N} ._-]+$/u.test(n)) return "Usa só letras, números, espaços, ponto, hífen ou _.";
+    if (!/[a-z0-9]/.test(slug(n))) return "O nome tem de ter pelo menos uma letra ou número (sem acentos especiais).";
+    return "";
+  }
+
+  function entrar(raw) {
+    var n = normNome(raw), erro = valida(n);
+    if (erro) { $("loginErro").textContent = erro; return false; }
+    var id = slug(n);
+    jogadorId = id;
+    jogadorNome = jogadores[id] ? jogadores[id].nome : n;
+    lsSet(LS_ATUAL, jogadorNome);
+    fechaLogin();
+    atualizaPlacar();
+    nova();
+    return true;
+  }
+
+  function abreLogin(podeCancelar) {
+    $("loginErro").textContent = "";
+    $("nome").value = "";
+    $("cancelaLogin").hidden = !podeCancelar;
+    renderRecentes();
+    $("login").hidden = false;
+    $("app").setAttribute("inert", "");
+    setTimeout(function () { try { $("nome").focus(); } catch (e) {} }, 0);
+  }
+  function fechaLogin() {
+    $("login").hidden = true;
+    $("app").removeAttribute("inert");
+  }
+
+  function renderRecentes() {
+    var box = $("recentesLista");
+    box.innerHTML = "";
+    var ids = Object.keys(jogadores).sort(function (a, b) { return jogadores[a].nome.localeCompare(jogadores[b].nome, "pt"); }).slice(0, 12);
+    $("recentes").hidden = !ids.length;
+    ids.forEach(function (id) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "chip";
+      b.textContent = jogadores[id].nome;
+      b.addEventListener("click", function () { entrar(jogadores[id].nome); });
+      box.appendChild(b);
+    });
+  }
+
+  function atualizaPlacar() {
+    var j = jogadorId && jogadores[jogadorId];
+    $("jNome").textContent = jogadorNome || "Jogador";
+    $("vit").textContent = String(j ? j.vitorias : 0);
+    $("der").textContent = String(j ? j.derrotas : 0);
+    $("seq").textContent = String(j ? j.sequencia : 0);
+  }
+
+  /* ---------- Hall of Fame ---------- */
+  function el(tag, cls, txt) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (txt !== undefined) e.textContent = txt;
+    return e;
+  }
+
+  function renderModo() {
+    $("modo").textContent = db && !semPermissao
+      ? "Ranking partilhado: aparecem todos os jogadores que usam esta página."
+      : "Ranking guardado só neste dispositivo.";
+  }
+
+  function campeao(rotulo, cls, max, nomes) {
+    var c = el("div", "campeao");
+    c.appendChild(el("span", "campeao-l", rotulo));
+    c.appendChild(el("span", "campeao-n " + cls, String(max)));
+    c.appendChild(el("span", "campeao-j", nomes.length ? nomes.join(", ") : "Ninguém ainda"));
+    return c;
+  }
+
+  function renderHall() {
+    renderModo();
+    var arr = Object.keys(jogadores).map(function (k) {
+      var j = jogadores[k];
+      return { id: k, nome: j.nome, v: j.vitorias, d: j.derrotas, t: j.vitorias + j.derrotas };
+    }).filter(function (x) { return x.t > 0; });
+
+    var maxV = 0, maxD = 0;
+    arr.forEach(function (x) { if (x.v > maxV) maxV = x.v; if (x.d > maxD) maxD = x.d; });
+    var cs = $("campeoes");
+    cs.innerHTML = "";
+    cs.appendChild(campeao("Mais vitórias", "vit", maxV, maxV ? arr.filter(function (x) { return x.v === maxV; }).map(function (x) { return x.nome; }) : []));
+    cs.appendChild(campeao("Mais derrotas", "der", maxD, maxD ? arr.filter(function (x) { return x.d === maxD; }).map(function (x) { return x.nome; }) : []));
+
+    var op = $("ordem");
+    op.innerHTML = "";
+    [["vitorias", "Mais vitórias"], ["derrotas", "Mais derrotas"], ["pct", "% de vitórias"]].forEach(function (o) {
+      var b = el("button", "chip", o[1]);
+      b.type = "button";
+      b.setAttribute("aria-pressed", String(ordem === o[0]));
+      b.addEventListener("click", function () { ordem = o[0]; renderHall(); });
+      op.appendChild(b);
+    });
+
+    arr.sort(function (a, b) {
+      if (ordem === "derrotas") {
+        if (b.d !== a.d) return b.d - a.d;
+        if (a.v !== b.v) return a.v - b.v;
+      } else if (ordem === "pct") {
+        var pa = a.v / a.t, pb = b.v / b.t;
+        if (pb !== pa) return pb - pa;
+        if (b.v !== a.v) return b.v - a.v;
+      } else {
+        if (b.v !== a.v) return b.v - a.v;
+        if (a.d !== b.d) return a.d - b.d;
+      }
+      return a.nome.localeCompare(b.nome, "pt");
+    });
+
+    var corpo = $("corpo");
+    corpo.innerHTML = "";
+    arr.forEach(function (x, i) {
+      var tr = document.createElement("tr");
+      if (x.id === jogadorId) tr.className = "eu";
+      tr.appendChild(el("td", "", String(i + 1)));
+      var tdN = el("td", "", x.nome);
+      if (x.id === jogadorId) tdN.appendChild(el("span", "tag-eu", "tu"));
+      tr.appendChild(tdN);
+      tr.appendChild(el("td", "", String(x.v)));
+      tr.appendChild(el("td", "", String(x.d)));
+      tr.appendChild(el("td", "", Math.round((x.v / x.t) * 100) + "%"));
+      corpo.appendChild(tr);
+    });
+    $("vazio").hidden = arr.length > 0;
+    $("tabela").hidden = arr.length === 0;
+  }
+
+  function abreHall() {
+    renderHall();
+    $("hall").hidden = false;
+    $("app").setAttribute("inert", "");
+    setTimeout(function () { try { $("fechaHall").focus(); } catch (e) {} }, 0);
+  }
+  function fechaHall() {
+    $("hall").hidden = true;
+    $("app").removeAttribute("inert");
+    try { $("btnHall").focus(); } catch (e) {}
+  }
+
+  /* ---------- Jogo ---------- */
   function renderTemas() {
     var box = $("temas");
     box.innerHTML = "";
@@ -354,8 +722,6 @@ h1 {
     }
     $("vidasN").textContent = String(MAX - erradas.length);
     $("erradas").textContent = erradas.join(" ");
-    $("vit").textContent = String(vit);
-    $("der").textContent = String(der);
   }
 
   function renderEstado() {
@@ -377,11 +743,11 @@ h1 {
   function render() { renderPalavra(); renderForca(); renderTeclado(); renderEstado(); }
 
   function jogar(l) {
-    if (fim || certas[l] || erradas.indexOf(l) >= 0) return;
+    if (!jogadorId || fim || certas[l] || erradas.indexOf(l) >= 0) return;
     var existe = letras().some(function (c) { return base(c) === l; });
     if (existe) { certas[l] = true; } else { erradas.push(l); }
-    if (letras().every(function (c) { return certas[base(c)]; })) { fim = "ganhou"; vit++; }
-    else if (erradas.length >= MAX) { fim = "perdeu"; der++; }
+    if (letras().every(function (c) { return certas[base(c)]; })) { fim = "ganhou"; registar("ganhou"); }
+    else if (erradas.length >= MAX) { fim = "perdeu"; registar("perdeu"); }
     render();
   }
 
@@ -423,16 +789,36 @@ h1 {
     return saco.pop();
   }
 
+  /* ---------- Eventos e arranque ---------- */
+  function bloqueado(e) {
+    if (!jogadorId || !$("login").hidden || !$("hall").hidden) return true;
+    var t = e.target && e.target.tagName;
+    return t === "INPUT" || t === "TEXTAREA" || t === "SELECT";
+  }
+
   document.addEventListener("keydown", function (e) {
-    if (e.ctrlKey || e.metaKey || e.altKey || e.key.length !== 1) return;
+    if (e.key === "Escape" && !$("hall").hidden) { fechaHall(); return; }
+    if (e.key === "Escape" && !$("login").hidden && jogadorId) { fechaLogin(); return; }
+    if (e.ctrlKey || e.metaKey || e.altKey || e.key.length !== 1 || bloqueado(e)) return;
     var l = base(e.key);
     if (/^[A-Z]$/.test(l)) jogar(l);
   });
   $("nova").addEventListener("click", nova);
+  $("btnHall").addEventListener("click", abreHall);
+  $("fechaHall").addEventListener("click", fechaHall);
+  $("btnJogador").addEventListener("click", function () { abreLogin(true); });
+  $("cancelaLogin").addEventListener("click", fechaLogin);
+  $("formLogin").addEventListener("submit", function (e) { e.preventDefault(); entrar($("nome").value); });
   window.addEventListener("resize", ajusta);
 
+  jogadores = carregaLocal();
   renderTemas();
   nova();
+  iniciaDb();
+
+  var guardado = normNome(lsGet(LS_ATUAL));
+  if (guardado && !valida(guardado)) { entrar(guardado); }
+  else { abreLogin(false); }
 })();
 </script>
 
