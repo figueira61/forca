@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>:root{color-scheme:light}body{margin:0}[hidden]{display:none!important}</style>
+<title>Jogo da Forca</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@700&family=Figtree:wght@400;600&family=JetBrains+Mono:wght@600&display=swap">
+<style>
+/* Layout: uma coluna de telemóvel, tema + forca no topo, palavra no meio, teclado QWERTY em baixo.
+   Cor: azul-ardósia frio com verde-azulado como acento; vermelho só para erros. */
+:root {
+  --bg: #eef2f5;
+  --surface: #ffffff;
+  --fg: #14212b;
+  --muted: #5b6b78;
+  --line: #cfd8de;
+  --accent: #0f6b6b;
+  --accent-fg: #ffffff;
+  --good: #17703f;
+  --bad: #b3261e;
+  --key: #e1e8ed;
+  --font-display: "Bricolage Grotesque", "Trebuchet MS", system-ui, sans-serif;
+  --font-body: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-letter: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f171d;
+    --surface: #17232b;
+    --fg: #e6eef3;
+    --muted: #94a5b1;
+    --line: #2a3a45;
+    --accent: #5fc4bf;
+    --accent-fg: #08201f;
+    --good: #5fd08f;
+    --bad: #ff7b72;
+    --key: #1f2f39;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f171d;
+  --surface: #17232b;
+  --fg: #e6eef3;
+  --muted: #94a5b1;
+  --line: #2a3a45;
+  --accent: #5fc4bf;
+  --accent-fg: #08201f;
+  --good: #5fd08f;
+  --bad: #ff7b72;
+  --key: #1f2f39;
+  color-scheme: dark;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+  font-size: 16px;
+  padding-inline: 16px;
+  padding-block: 16px 24px;
+}
+.app {
+  max-width: 480px;
+  margin-inline: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+h1 {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  line-height: 1;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+.placar {
+  display: flex;
+  gap: 14px;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+.placar b {
+  font-family: var(--font-letter);
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+  margin-left: 4px;
+}
+
+.temas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.chip {
+  font: inherit;
+  font-size: 0.875rem;
+  color: var(--fg);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+.chip[aria-pressed="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-fg);
+  font-weight: 600;
+}
+
+.palco {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 12px 16px;
+}
+.palco svg {
+  width: 112px;
+  height: auto;
+  flex: none;
+}
+.forca-linha { fill: none; stroke: var(--muted); stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; }
+.forca-boneco { fill: none; stroke: var(--bad); stroke-width: 5; stroke-linecap: round; }
+.forca-boneco[hidden] { display: none; }
+.vidas { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.vidas-n {
+  font-family: var(--font-display);
+  font-size: 2.25rem;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.vidas-l { font-size: 0.8125rem; color: var(--muted); }
+.erradas {
+  font-family: var(--font-letter);
+  font-size: 0.9375rem;
+  color: var(--bad);
+  min-height: 1.4em;
+  letter-spacing: 0.12em;
+  overflow-wrap: anywhere;
+}
+
+/* A palavra fica sempre numa só linha: o JS calcula --w e --gap conforme o número de letras */
+.palavra {
+  display: flex;
+  flex-wrap: nowrap;
+  justify-content: center;
+  gap: var(--gap, 6px);
+  padding-block: 6px;
+}
+.letra {
+  flex: none;
+  width: var(--w, 32px);
+  height: calc(var(--w, 32px) * 1.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-letter);
+  font-size: min(1.75rem, calc(var(--w, 32px) * 0.85));
+  border-bottom: 3px solid var(--fg);
+}
+.letra.falhada { color: var(--bad); border-bottom-color: var(--bad); }
+.letra.certa { animation: entra 0.18s ease-out; }
+@keyframes entra { from { transform: translateY(6px); opacity: 0.2; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .letra.certa { animation: none; } }
+
+.estado {
+  margin: 0;
+  min-height: 1.5em;
+  text-align: center;
+  font-size: 0.9375rem;
+  color: var(--muted);
+}
+.estado.ganhou { color: var(--good); font-weight: 600; }
+.estado.perdeu { color: var(--bad); font-weight: 600; }
+
+.teclado { display: flex; flex-direction: column; gap: 6px; }
+.fila { display: flex; justify-content: center; gap: 5px; }
+.tecla {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 44px;
+  height: 46px;
+  font-family: var(--font-letter);
+  font-size: 1rem;
+  color: var(--fg);
+  background: var(--key);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+  padding: 0;
+}
+.tecla:disabled { cursor: default; }
+.tecla.certa { background: var(--good); border-color: var(--good); color: var(--bg); }
+.tecla.errada { background: transparent; color: var(--muted); text-decoration: line-through; opacity: 0.55; }
+
+.nova {
+  font: inherit;
+  font-weight: 600;
+  color: var(--fg);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  height: 46px;
+  cursor: pointer;
+}
+.nova.destaque { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+
+.chip:focus-visible, .tecla:focus-visible, .nova:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+</style>
+</head>
+<body>
+
+<main class="app" lang="pt-PT">
+  <header>
+    <h1>Forca</h1>
+    <div class="placar" aria-label="Placar">
+      <span>Vitórias<b id="vit">0</b></span>
+      <span>Derrotas<b id="der">0</b></span>
+    </div>
+  </header>
+
+  <div class="temas" id="temas" role="group" aria-label="Tema"></div>
+
+  <section class="palco" aria-label="Forca">
+    <svg viewBox="0 0 120 150" role="img" aria-label="Desenho da forca">
+      <path class="forca-linha" d="M10 142 H80 M30 142 V12 H86 V28"/>
+      <circle id="p0" class="forca-boneco" cx="86" cy="40" r="12" hidden/>
+      <path id="p1" class="forca-boneco" d="M86 52 V94" hidden/>
+      <path id="p2" class="forca-boneco" d="M86 62 L68 80" hidden/>
+      <path id="p3" class="forca-boneco" d="M86 62 L104 80" hidden/>
+      <path id="p4" class="forca-boneco" d="M86 94 L70 120" hidden/>
+      <path id="p5" class="forca-boneco" d="M86 94 L102 120" hidden/>
+    </svg>
+    <div class="vidas">
+      <div class="vidas-n" id="vidasN">6</div>
+      <div class="vidas-l">tentativas restantes</div>
+      <div class="erradas" id="erradas" aria-label="Letras erradas"></div>
+    </div>
+  </section>
+
+  <div class="palavra" id="palavra" aria-live="polite"></div>
+  <p class="estado" id="estado" role="status"></p>
+
+  <div class="teclado" id="teclado"></div>
+  <button class="nova" id="nova" type="button">Nova palavra</button>
+</main>
+
+<script>
+(function () {
+  var MAX = 6;
+  var TEMAS = {
+    "Animais": ["GATO","CAVALO","ELEFANTE","GIRAFA","TARTARUGA","GOLFINHO","PAPAGAIO","LEÃO","PÁSSARO","BÚFALO","PINGUIM","CAMELO","CROCODILO","LEOPARDO","GALINHA","CARANGUEJO","MORCEGO","TOUPEIRA"],
+    "Países": ["FRANÇA","JAPÃO","CANADÁ","ITÁLIA","MOÇAMBIQUE","ESPANHA","ALEMANHA","BRASIL","ANGOLA","PORTUGAL","ARGENTINA","NORUEGA","ÁUSTRIA","SUÉCIA","GRÉCIA","HOLANDA","MARROCOS","COLÔMBIA"],
+    "Comida": ["AÇORDA","PÃO","FEIJÃO","LIMÃO","MAÇÃ","CHOURIÇO","AMÊIJOAS","BACALHAU","MORANGO","SARDINHA","QUEIJO","CHOCOLATE","FRANCESINHA","CARAMELO","BOLACHA","MELANCIA","COGUMELO","AZEITONA"],
+    "Desporto": ["FUTEBOL","BASQUETEBOL","NATAÇÃO","TÉNIS","ATLETISMO","CICLISMO","ANDEBOL","VOLEIBOL","ESGRIMA","SURF","GINÁSTICA","PATINAGEM","CANOAGEM","HIPISMO","BOXE","REMO","MARATONA","SALTO"],
+    "Profissões": ["MÉDICO","ENGENHEIRO","PROFESSOR","CANALIZADOR","ELECTRICISTA","PADEIRO","ADVOGADO","BOMBEIRO","PINTOR","COZINHEIRO","PILOTO","ENFERMEIRO","CARPINTEIRO","JORNALISTA","MECÂNICO","ARQUITECTO","FARMACÊUTICO","PESCADOR"],
+    "Tecnologia": ["COMPUTADOR","TECLADO","IMPRESSORA","CALCULADORA","TELEMÓVEL","INTERNET","SOFTWARE","SCANNER","MONITOR","PROGRAMA","SERVIDOR","BATERIA","AUSCULTADORES","PROCESSADOR","ROUTER","MEMÓRIA","PIXEL","ALGORITMO"]
+  };
+  var ALEATORIO = "Aleatório";
+  var LINHAS = ["QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM"];
+
+  var tema = ALEATORIO, palavra = "", ultima = "", temaReal = "", ultimoTema = "";
+  var sacoTemas = [], sacosPalavras = {};
+  var certas = {}, erradas = [], fim = null, vit = 0, der = 0;
+
+  function $(id) { return document.getElementById(id); }
+  function rand(n) { return Math.floor(Math.random() * n); }
+  // A letra base ignora acentos e cedilha: Ç -> C, Ã -> A, É -> E
+  function base(ch) { return ch.normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase(); }
+  function letras() { return Array.from(palavra); }
+
+  function renderTemas() {
+    var box = $("temas");
+    box.innerHTML = "";
+    Object.keys(TEMAS).concat([ALEATORIO]).forEach(function (nome) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "chip";
+      b.textContent = nome;
+      b.setAttribute("aria-pressed", String(nome === tema));
+      b.addEventListener("click", function () { tema = nome; renderTemas(); nova(); });
+      box.appendChild(b);
+    });
+  }
+
+  function renderTeclado() {
+    var box = $("teclado");
+    box.innerHTML = "";
+    LINHAS.forEach(function (linha) {
+      var f = document.createElement("div");
+      f.className = "fila";
+      linha.split("").forEach(function (l) {
+        var b = document.createElement("button");
+        b.type = "button";
+        b.className = "tecla";
+        b.textContent = l;
+        b.setAttribute("aria-label", "Letra " + l);
+        if (certas[l]) { b.classList.add("certa"); b.disabled = true; }
+        else if (erradas.indexOf(l) >= 0) { b.classList.add("errada"); b.disabled = true; }
+        else if (fim) { b.disabled = true; }
+        b.addEventListener("click", function () { jogar(l); });
+        f.appendChild(b);
+      });
+      box.appendChild(f);
+    });
+  }
+
+  function renderPalavra() {
+    var box = $("palavra");
+    box.innerHTML = "";
+    letras().forEach(function (c) {
+      var s = document.createElement("span");
+      s.className = "letra";
+      if (certas[base(c)]) { s.textContent = c; }
+      else if (fim === "perdeu") { s.textContent = c; s.classList.add("falhada"); }
+      box.appendChild(s);
+    });
+    box.setAttribute("aria-label", "Palavra do tema " + temaReal);
+    ajusta();
+  }
+
+  // Calcula o tamanho das casas para a palavra caber sempre numa única linha
+  function ajusta() {
+    var box = $("palavra");
+    var n = letras().length;
+    var largura = box.clientWidth;
+    if (!n || !largura) return;
+    var gap = n > 10 ? 4 : 6;
+    var w = Math.floor((largura - gap * (n - 1)) / n);
+    w = Math.max(10, Math.min(36, w));
+    box.style.setProperty("--gap", gap + "px");
+    box.style.setProperty("--w", w + "px");
+  }
+
+  function renderForca() {
+    for (var i = 0; i < MAX; i++) {
+      var parte = $("p" + i);
+      // Elementos SVG não têm a propriedade "hidden", por isso usa-se o atributo
+      if (erradas.length <= i) { parte.setAttribute("hidden", ""); }
+      else { parte.removeAttribute("hidden"); }
+    }
+    $("vidasN").textContent = String(MAX - erradas.length);
+    $("erradas").textContent = erradas.join(" ");
+    $("vit").textContent = String(vit);
+    $("der").textContent = String(der);
+  }
+
+  function renderEstado() {
+    var e = $("estado"), n = $("nova");
+    e.className = "estado";
+    n.classList.remove("destaque");
+    if (fim === "ganhou") {
+      e.textContent = "Ganhaste! A palavra era " + palavra + ".";
+      e.classList.add("ganhou"); n.textContent = "Jogar outra vez"; n.classList.add("destaque");
+    } else if (fim === "perdeu") {
+      e.textContent = "Perdeste. A palavra era " + palavra + ".";
+      e.classList.add("perdeu"); n.textContent = "Jogar outra vez"; n.classList.add("destaque");
+    } else {
+      e.textContent = "Tema: " + temaReal + " · " + letras().length + " letras";
+      n.textContent = "Nova palavra";
+    }
+  }
+
+  function render() { renderPalavra(); renderForca(); renderTeclado(); renderEstado(); }
+
+  function jogar(l) {
+    if (fim || certas[l] || erradas.indexOf(l) >= 0) return;
+    var existe = letras().some(function (c) { return base(c) === l; });
+    if (existe) { certas[l] = true; } else { erradas.push(l); }
+    if (letras().every(function (c) { return certas[base(c)]; })) { fim = "ganhou"; vit++; }
+    else if (erradas.length >= MAX) { fim = "perdeu"; der++; }
+    render();
+  }
+
+  function nova() {
+    if (tema === ALEATORIO) { temaReal = proximoTema(); } else { temaReal = tema; }
+    ultimoTema = temaReal;
+    palavra = proximaPalavra(temaReal);
+    ultima = palavra;
+    certas = {}; erradas = []; fim = null;
+    render();
+  }
+
+  function baralha(a) {
+    for (var i = a.length - 1; i > 0; i--) {
+      var j = rand(i + 1), t = a[i]; a[i] = a[j]; a[j] = t;
+    }
+    return a;
+  }
+
+  // Modo aleatório: passa por todos os temas antes de repetir algum,
+  // e nunca começa uma nova ronda com o tema que acabou de sair.
+  function proximoTema() {
+    if (!sacoTemas.length) { sacoTemas = baralha(Object.keys(TEMAS)); }
+    var i = sacoTemas.length - 1;
+    if (sacoTemas[i] === ultimoTema && sacoTemas.length > 1) { i = 0; }
+    return sacoTemas.splice(i, 1)[0];
+  }
+
+  // Dentro de cada tema, só repete palavras depois de saírem todas.
+  function proximaPalavra(t) {
+    var saco = sacosPalavras[t];
+    if (!saco || !saco.length) {
+      saco = baralha(TEMAS[t].slice());
+      if (saco.length > 1 && saco[saco.length - 1] === ultima) {
+        var x = saco[0]; saco[0] = saco[saco.length - 1]; saco[saco.length - 1] = x;
+      }
+      sacosPalavras[t] = saco;
+    }
+    return saco.pop();
+  }
+
+  document.addEventListener("keydown", function (e) {
+    if (e.ctrlKey || e.metaKey || e.altKey || e.key.length !== 1) return;
+    var l = base(e.key);
+    if (/^[A-Z]$/.test(l)) jogar(l);
+  });
+  $("nova").addEventListener("click", nova);
+  window.addEventListener("resize", ajusta);
+
+  renderTemas();
+  nova();
+})();
+</script>
+
+</body>
+</html>
