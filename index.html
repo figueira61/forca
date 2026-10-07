@@ -379,7 +379,7 @@ h1 {
 .caixa p { margin: 0; font-size: 0.8125rem; color: var(--muted); }
 .caixa label { font-size: 10px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
 .caixa-topo { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-input[type="text"] {
+input[type="text"], input[type="password"] {
   width: 100%;
   box-sizing: border-box;
   padding: 12px;
@@ -390,7 +390,7 @@ input[type="text"] {
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 10px;
 }
-input[type="text"]:focus { border-color: var(--neon); }
+input[type="text"]:focus, input[type="password"]:focus { border-color: var(--neon); }
 .erro { color: var(--red) !important; min-height: 1.3em; }
 .recentes { display: flex; flex-direction: column; gap: 6px; }
 .recentes[hidden] { display: none; }
@@ -431,8 +431,6 @@ tr.eu td { background: rgba(0, 255, 170, 0.08); }
 
 .chip:focus-visible, .tecla:focus-visible, .nova:focus-visible, input:focus-visible { outline: 2px solid var(--neon); outline-offset: 2px; }
 </style>
-</head>
-<body>
 
 <main class="app" id="app" lang="pt-PT">
   <header>
@@ -440,7 +438,7 @@ tr.eu td { background: rgba(0, 255, 170, 0.08); }
     <div class="acoes">
       <a class="chip" id="btnTemplo" href="https://figueira61.github.io/Templo-do-Retro/" aria-label="Voltar ao Templo do Retro" title="Voltar ao Templo do Retro">&larr; Templo</a>
       <button class="chip" id="btnHall" type="button">Hall of Fame</button>
-      <button class="chip" id="btnJogador" type="button" aria-label="Trocar de jogador"><span id="jNome"></span> ▾</button>
+      <button class="chip" id="btnJogador" type="button" aria-label="Trocar de jogador" title="Trocar de jogador"><span id="jNome"></span> ▾</button>
     </div>
   </header>
   <div class="placar" aria-label="As tuas estatísticas">
@@ -479,18 +477,21 @@ tr.eu td { background: rgba(0, 255, 170, 0.08); }
 <div class="sobre" id="login" role="dialog" aria-modal="true" aria-labelledby="loginT">
   <form class="caixa" id="formLogin" autocomplete="off">
     <h2 id="loginT">Quem vai jogar?</h2>
-    <p>Escolhe o teu nome de jogador. Se o nome já existir, continuas com as vitórias e derrotas dele.</p>
-    <label for="nome">Nome de jogador</label>
-    <input type="text" id="nome" name="nome" maxlength="16" autocapitalize="words" enterkeyhint="go" spellcheck="false" placeholder="Ex.: Miguel">
-    <p class="erro" id="loginErro" role="alert"></p>
-    <div class="recentes" id="recentes" hidden>
-      <span class="recentes-l">Jogadores existentes</span>
-      <div class="lista-chips" id="recentesLista"></div>
+    <p>Entra com o teu nome de jogador e PIN, ou cria um jogador novo (o nome é único em todo o Templo do Retro).</p>
+    <div class="temas" id="modoLogin" role="group" aria-label="Entrar ou criar">
+      <button class="chip" id="abaEntrar" type="button" aria-pressed="true">Entrar</button>
+      <button class="chip" id="abaCriar" type="button" aria-pressed="false">Criar jogador</button>
     </div>
+    <label for="nome">Nome de jogador</label>
+    <input type="text" id="nome" name="nome" maxlength="16" autocapitalize="off" enterkeyhint="next" spellcheck="false" placeholder="Ex.: Miguel">
+    <label for="pin">PIN (4 a 6 dígitos)</label>
+    <input type="password" id="pin" name="pin" maxlength="6" inputmode="numeric" pattern="[0-9]*" enterkeyhint="go" placeholder="••••">
+    <p class="erro" id="loginErro" role="alert"></p>
     <div class="botoes">
       <button class="nova" id="cancelaLogin" type="button" hidden>Cancelar</button>
-      <button class="nova destaque" type="submit">Entrar</button>
+      <button class="nova destaque" id="okLogin" type="submit">Entrar</button>
     </div>
+    <button class="nova" id="semRanking" type="button" hidden>Jogar sem ranking</button>
   </form>
 </div>
 
@@ -526,16 +527,130 @@ tr.eu td { background: rgba(0, 255, 170, 0.08); }
   };
   var ALEATORIO = "Aleatório";
   var LINHAS = ["QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM"];
-  var LS_JOGADORES = "forca.jogadores", LS_ATUAL = "forca.atual";
+/* ===== RETRO: cliente do Templo do Retro (Supabase) — partilhado pelos 3 sites ===== */
+  var RETRO = (function () {
+    var URL = "https://gzehglkrrpwahuzkqjxa.supabase.co";
+    var KEY = "sb_publishable_9EI749gU417uUY9bPCTvzA_gmFEwAwm";
+    var CHAVE = "retro.sessao";
+    var sessao = null;
+  
+    function rpc(fn, corpo) {
+      var ctl = typeof AbortController !== "undefined" ? new AbortController() : null;
+      var t = ctl ? setTimeout(function () { ctl.abort(); }, 10000) : null;
+      return fetch(URL + "/rest/v1/rpc/" + fn, {
+        method: "POST",
+        headers: { "apikey": KEY, "Content-Type": "application/json" },
+        body: JSON.stringify(corpo || {}),
+        signal: ctl ? ctl.signal : undefined
+      }).then(function (r) {
+        if (t) clearTimeout(t);
+        if (!r.ok) throw new Error("http_" + r.status);
+        return r.json();
+      }, function (e) {
+        if (t) clearTimeout(t);
+        throw new Error("rede");
+      });
+    }
+  
+    function lerSessao() {
+      try {
+        var s = JSON.parse(localStorage.getItem(CHAVE) || "null");
+        if (s && s.username && s.token) { sessao = s; return s; }
+      } catch (e) {}
+      sessao = null; return null;
+    }
+    function guardarSessao(username, token) {
+      sessao = { username: username, token: token };
+      try { localStorage.setItem(CHAVE, JSON.stringify(sessao)); } catch (e) {}
+    }
+    function limparSessao() {
+      sessao = null;
+      try { localStorage.removeItem(CHAVE); } catch (e) {}
+    }
+  
+    function trata(p) {
+      return p.then(function (r) {
+        if (r && r.ok && r.token) guardarSessao(r.username, r.token);
+        return r;
+      });
+    }
+    function entrar(nome, pin) { return trata(rpc("login_player", { p_username: nome, p_pin: pin })); }
+    function criar(nome, pin) { return trata(rpc("register_player", { p_username: nome, p_pin: pin })); }
+  
+    // Valida a sessão guardada. Devolve {ok:true,username} | {ok:false} (sessão inválida).
+    // Se não houver rede, rejeita (quem chama decide continuar com a sessão local).
+    function validar() {
+      var s = lerSessao();
+      if (!s) return Promise.resolve({ ok: false, error: "sem_sessao" });
+      return rpc("check_session", { p_token: s.token }).then(function (r) {
+        if (!r || !r.ok) limparSessao();
+        return r;
+      });
+    }
+    function sair() {
+      var s = sessao || lerSessao();
+      limparSessao();
+      if (!s) return Promise.resolve();
+      return rpc("logout_player", { p_token: s.token }).catch(function () {});
+    }
+    function enviar(jogo, dados) {
+      var s = sessao || lerSessao();
+      if (!s) return Promise.resolve({ ok: false, error: "invalid_session" });
+      return rpc("submit_result", {
+        p_token: s.token, p_game: jogo,
+        p_score: dados && dados.score != null ? dados.score : null,
+        p_result: dados && dados.result ? dados.result : null
+      }).then(function (r) {
+        if (r && !r.ok && r.error === "invalid_session") limparSessao();
+        return r;
+      });
+    }
+    function ranking(jogo) { return rpc("get_leaderboard", { p_game: jogo, p_limit: 500 }); }
+    function minhasStats() {
+      var s = sessao || lerSessao();
+      if (!s) return Promise.resolve({ ok: false, error: "invalid_session" });
+      return rpc("get_my_stats", { p_token: s.token });
+    }
+  
+    function mensagemErro(r) {
+      var e = r && r.error;
+      if (e === "invalid_name") return "Nome inválido: 2 a 16 caracteres (letras, números, espaço . _ -).";
+      if (e === "invalid_pin") return "PIN inválido: usa 4 a 6 dígitos.";
+      if (e === "name_taken") return "Esse nome já está em uso. Escolhe outro.";
+      if (e === "wrong_credentials") return "Nome ou PIN errado.";
+      if (e === "locked") {
+        var m = Math.max(1, Math.ceil((r.retry_in || 60) / 60));
+        return "Conta bloqueada por PINs errados. Tenta daqui a " + m + " min.";
+      }
+      if (e === "full") return "O Templo está cheio de jogadores.";
+      if (e === "invalid_session") return "A sessão expirou. Entra de novo.";
+      return "Erro inesperado. Tenta de novo.";
+    }
+    function esc(s) {
+      return String(s).replace(/[&<>"']/g, function (c) {
+        return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+      });
+    }
+  
+    return {
+      rpc: rpc, sessao: function () { return sessao || lerSessao(); },
+      entrar: entrar, criar: criar, validar: validar, sair: sair,
+      enviar: enviar, ranking: ranking, minhasStats: minhasStats,
+      mensagemErro: mensagemErro, esc: esc,
+      redeErro: function (e) { return !!e && (e.message === "rede" || /^http_/.test(e.message)); }
+    };
+  })();
+  
 
   var tema = ALEATORIO, palavra = "", ultima = "", temaReal = "", ultimoTema = "";
   var sacoTemas = [], sacosPalavras = {};
   var certas = {}, erradas = [], fim = null;
 
-  // Jogadores: id -> {nome, vitorias, derrotas, sequencia, melhor}
-  var jogadores = {}, jogadorId = null, jogadorNome = "";
-  var db = null, semPermissao = false, filaDb = Promise.resolve();
-  var ordem = "vitorias";
+  // Jogador atual: jogadorId é "retro" (com conta), "offline" (sem ranking) ou null
+  var jogadorId = null, jogadorNome = "";
+  var eu = { vitorias: 0, derrotas: 0, sequencia: 0 };
+  var lista = null, listaErro = false;
+  var ordem = "vitorias", modoLogin = "entrar";
 
   function $(id) { return document.getElementById(id); }
   function rand(n) { return Math.floor(Math.random() * n); }
@@ -543,111 +658,84 @@ tr.eu td { background: rgba(0, 255, 170, 0.08); }
   function base(ch) { return ch.normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase(); }
   function letras() { return Array.from(palavra); }
 
-  /* ---------- Armazenamento local (reserva) ---------- */
-  function lsGet(k) { try { return window.localStorage.getItem(k); } catch (e) { return null; } }
-  function lsSet(k, v) { try { window.localStorage.setItem(k, v); } catch (e) {} }
-
-  function num(x) { x = Number(x); return isFinite(x) && x > 0 ? Math.floor(x) : 0; }
-  function limpa(d, id) {
-    if (!d || typeof d !== "object") return null;
-    return { nome: String(d.nome || id).slice(0, 24), vitorias: num(d.vitorias), derrotas: num(d.derrotas), sequencia: num(d.sequencia), melhor: num(d.melhor) };
-  }
-  function carregaLocal() {
-    var out = {};
-    try {
-      var o = JSON.parse(lsGet(LS_JOGADORES) || "{}");
-      Object.keys(o).forEach(function (k) { var j = limpa(o[k], k); if (j) out[k] = j; });
-    } catch (e) {}
-    return out;
-  }
-  function guardaLocal() { lsSet(LS_JOGADORES, JSON.stringify(jogadores)); }
-
-  /* ---------- Ranking partilhado (só quando o Claude o disponibiliza) ---------- */
-  function iniciaDb() {
-    if (!(window.claude && typeof window.claude.use === "function")) return;
-    window.claude.use("db").then(function (d) {
-      if (!d) return;
-      db = d;
-      d.collection("jogadores").onSnapshot(function (snap) {
-        var m = {};
-        snap.docs.forEach(function (doc) { var j = limpa(doc.data(), doc.id); if (j) m[doc.id] = j; });
-        jogadores = m;
-        guardaLocal();
-        atualizaPlacar();
-        renderRecentes();
-        if (!$("hall").hidden) renderHall();
-      }, function () { db = null; renderModo(); });
-    }).catch(function () { db = null; });
-  }
-
-  function aplica(j, resultado) {
-    if (resultado === "ganhou") { j.vitorias++; j.sequencia++; if (j.sequencia > j.melhor) j.melhor = j.sequencia; }
-    else { j.derrotas++; j.sequencia = 0; }
-    return j;
-  }
-
   function mostraNota(txt) {
     var n = $("nota");
     n.textContent = txt || "";
     n.hidden = !txt;
   }
 
+  /* ---------- Resultados ---------- */
+  function doServidor(st) {
+    eu = { vitorias: st.wins || 0, derrotas: st.losses || 0, sequencia: st.streak || 0 };
+  }
+
   function registar(resultado) {
-    var id = jogadorId, nome = jogadorNome;
-    if (!id) return;
-    var atual = jogadores[id] ? Object.assign({}, jogadores[id]) : { nome: nome, vitorias: 0, derrotas: 0, sequencia: 0, melhor: 0 };
-    jogadores[id] = aplica(atual, resultado);
-    guardaLocal();
+    if (!jogadorId) return;
+    // Atualiza já o placar (otimista); o servidor confirma a seguir
+    if (resultado === "ganhou") { eu.vitorias++; eu.sequencia++; } else { eu.derrotas++; eu.sequencia = 0; }
     atualizaPlacar();
-    if (!db || semPermissao) return;
-    // Lê o valor mais recente do ranking partilhado e grava por cima, um pedido de cada vez
-    filaDb = filaDb.then(function () {
-      var ref = db.doc("jogadores/" + id);
-      return ref.get().then(function (snap) {
-        var corpo = snap.exists ? limpa(snap.data(), id) : { nome: nome, vitorias: 0, derrotas: 0, sequencia: 0, melhor: 0 };
-        aplica(corpo, resultado);
-        corpo.atualizado = Date.now();
-        return ref.set(corpo);
-      });
-    }).then(function () { mostraNota(""); }).catch(function (e) {
-      if (e && e.code === "invalid_argument") {
-        semPermissao = true;
-        mostraNota("Sem permissão para gravar no ranking partilhado. Os resultados ficam só neste dispositivo.");
-      } else {
-        mostraNota("Não foi possível gravar no ranking partilhado. O resultado ficou só neste dispositivo.");
-      }
-      renderModo();
+    if (jogadorId !== "retro") { mostraNota("Sem ranking: o resultado não fica registado no Hall of Fame."); return; }
+    RETRO.enviar("forca", { result: resultado === "ganhou" ? "win" : "loss" }).then(function (r) {
+      if (r && r.ok) { doServidor(r.stats); atualizaPlacar(); mostraNota(""); }
+      else if (r && r.error === "invalid_session") { mostraNota("A sessão expirou. Entra de novo para registares os resultados."); abreLogin(false); }
+      else if (r && r.error === "too_fast") mostraNota("Resultado não registado (partida demasiado rápida).");
+      else mostraNota("Não foi possível registar o resultado no Hall of Fame.");
+    }, function () {
+      mostraNota("Sem ligação ao servidor: este resultado não ficou registado no ranking global.");
     });
   }
 
   /* ---------- Jogador ---------- */
-  function normNome(raw) { return String(raw || "").replace(/\s+/g, " ").trim(); }
-  function slug(n) { return n.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9_-]/g, ""); }
-  function valida(n) {
-    if (n.length < 2 || n.length > 16) return "O nome deve ter entre 2 e 16 caracteres.";
-    if (!/^[\p{L}\p{N} ._-]+$/u.test(n)) return "Usa só letras, números, espaços, ponto, hífen ou _.";
-    if (!/[a-z0-9]/.test(slug(n))) return "O nome tem de ter pelo menos uma letra ou número (sem acentos especiais).";
-    return "";
+  function carregaStats() {
+    return RETRO.minhasStats().then(function (r) {
+      if (r && r.ok && r.stats && r.stats.forca) doServidor(r.stats.forca);
+      else eu = { vitorias: 0, derrotas: 0, sequencia: 0 };
+    }, function () {});
   }
 
-  function entrar(raw) {
-    var n = normNome(raw), erro = valida(n);
-    if (erro) { $("loginErro").textContent = erro; return false; }
-    var id = slug(n);
+  function comecar(id, nome) {
     jogadorId = id;
-    jogadorNome = jogadores[id] ? jogadores[id].nome : n;
-    lsSet(LS_ATUAL, jogadorNome);
+    jogadorNome = nome;
+    eu = { vitorias: 0, derrotas: 0, sequencia: 0 };
     fechaLogin();
     atualizaPlacar();
+    var p = id === "retro" ? carregaStats() : Promise.resolve();
+    p.then(atualizaPlacar);
+    mostraNota("");
     nova();
-    return true;
+  }
+
+  function setModoLogin(m) {
+    modoLogin = m;
+    $("abaEntrar").setAttribute("aria-pressed", String(m === "entrar"));
+    $("abaCriar").setAttribute("aria-pressed", String(m === "criar"));
+    $("okLogin").textContent = m === "entrar" ? "Entrar" : "Criar e entrar";
+    $("loginErro").textContent = "";
+  }
+
+  function submeteLogin() {
+    var n = $("nome").value.replace(/\s+/g, " ").trim(), pin = $("pin").value.trim();
+    if (n.length < 2) { $("loginErro").textContent = "Escreve o teu nome de jogador."; return; }
+    if (!/^[0-9]{4,6}$/.test(pin)) { $("loginErro").textContent = "O PIN tem de ter 4 a 6 dígitos."; return; }
+    $("loginErro").textContent = "";
+    $("okLogin").disabled = true;
+    (modoLogin === "entrar" ? RETRO.entrar(n, pin) : RETRO.criar(n, pin)).then(function (r) {
+      $("okLogin").disabled = false;
+      if (r && r.ok) comecar("retro", r.username);
+      else $("loginErro").textContent = RETRO.mensagemErro(r);
+    }, function () {
+      $("okLogin").disabled = false;
+      $("loginErro").textContent = "Sem ligação ao servidor. Tenta de novo ou joga sem ranking.";
+      $("semRanking").hidden = false;
+    });
   }
 
   function abreLogin(podeCancelar) {
     $("loginErro").textContent = "";
     $("nome").value = "";
+    $("pin").value = "";
+    $("semRanking").hidden = true;
     $("cancelaLogin").hidden = !podeCancelar;
-    renderRecentes();
     $("login").hidden = false;
     $("app").setAttribute("inert", "");
     setTimeout(function () { try { $("nome").focus(); } catch (e) {} }, 0);
@@ -657,41 +745,19 @@ tr.eu td { background: rgba(0, 255, 170, 0.08); }
     $("app").removeAttribute("inert");
   }
 
-  function renderRecentes() {
-    var box = $("recentesLista");
-    box.innerHTML = "";
-    var ids = Object.keys(jogadores).sort(function (a, b) { return jogadores[a].nome.localeCompare(jogadores[b].nome, "pt"); }).slice(0, 12);
-    $("recentes").hidden = !ids.length;
-    ids.forEach(function (id) {
-      var b = document.createElement("button");
-      b.type = "button";
-      b.className = "chip";
-      b.textContent = jogadores[id].nome;
-      b.addEventListener("click", function () { entrar(jogadores[id].nome); });
-      box.appendChild(b);
-    });
-  }
-
   function atualizaPlacar() {
-    var j = jogadorId && jogadores[jogadorId];
     $("jNome").textContent = jogadorNome || "Jogador";
-    $("vit").textContent = String(j ? j.vitorias : 0);
-    $("der").textContent = String(j ? j.derrotas : 0);
-    $("seq").textContent = String(j ? j.sequencia : 0);
+    $("vit").textContent = String(eu.vitorias);
+    $("der").textContent = String(eu.derrotas);
+    $("seq").textContent = String(eu.sequencia);
   }
 
-  /* ---------- Hall of Fame ---------- */
+  /* ---------- Hall of Fame (global) ---------- */
   function el(tag, cls, txt) {
     var e = document.createElement(tag);
     if (cls) e.className = cls;
     if (txt !== undefined) e.textContent = txt;
     return e;
-  }
-
-  function renderModo() {
-    $("modo").textContent = db && !semPermissao
-      ? "Ranking partilhado: aparecem todos os jogadores que usam esta página."
-      : "Ranking guardado só neste dispositivo.";
   }
 
   function campeao(rotulo, cls, max, nomes) {
@@ -703,10 +769,13 @@ tr.eu td { background: rgba(0, 255, 170, 0.08); }
   }
 
   function renderHall() {
-    renderModo();
-    var arr = Object.keys(jogadores).map(function (k) {
-      var j = jogadores[k];
-      return { id: k, nome: j.nome, v: j.vitorias, d: j.derrotas, t: j.vitorias + j.derrotas };
+    $("modo").textContent = listaErro
+      ? "Sem ligação ao servidor: não foi possível carregar o ranking global."
+      : lista === null ? "A carregar o ranking global…"
+      : "Ranking global: todos os jogadores do Templo do Retro.";
+    var meu = jogadorId === "retro" ? jogadorNome.toLowerCase() : null;
+    var arr = (lista || []).map(function (j) {
+      return { nome: j.username, v: j.wins || 0, d: j.losses || 0, t: (j.wins || 0) + (j.losses || 0) };
     }).filter(function (x) { return x.t > 0; });
 
     var maxV = 0, maxD = 0;
@@ -744,26 +813,31 @@ tr.eu td { background: rgba(0, 255, 170, 0.08); }
     var corpo = $("corpo");
     corpo.innerHTML = "";
     arr.forEach(function (x, i) {
+      var sou = meu && x.nome.toLowerCase() === meu;
       var tr = document.createElement("tr");
-      if (x.id === jogadorId) tr.className = "eu";
+      if (sou) tr.className = "eu";
       tr.appendChild(el("td", "", String(i + 1)));
       var tdN = el("td", "", x.nome);
-      if (x.id === jogadorId) tdN.appendChild(el("span", "tag-eu", "tu"));
+      if (sou) tdN.appendChild(el("span", "tag-eu", "tu"));
       tr.appendChild(tdN);
       tr.appendChild(el("td", "", String(x.v)));
       tr.appendChild(el("td", "", String(x.d)));
       tr.appendChild(el("td", "", Math.round((x.v / x.t) * 100) + "%"));
       corpo.appendChild(tr);
     });
-    $("vazio").hidden = arr.length > 0;
+    var vazio = lista !== null && arr.length === 0;
+    $("vazio").hidden = !vazio;
     $("tabela").hidden = arr.length === 0;
   }
 
   function abreHall() {
+    lista = null; listaErro = false;
     renderHall();
     $("hall").hidden = false;
     $("app").setAttribute("inert", "");
     setTimeout(function () { try { $("fechaHall").focus(); } catch (e) {} }, 0);
+    RETRO.ranking("forca").then(function (l) { lista = Array.isArray(l) ? l : []; renderHall(); },
+      function () { listaErro = true; lista = []; renderHall(); });
   }
   function fechaHall() {
     $("hall").hidden = true;
@@ -931,19 +1005,23 @@ tr.eu td { background: rgba(0, 255, 170, 0.08); }
   $("fechaHall").addEventListener("click", fechaHall);
   $("btnJogador").addEventListener("click", function () { abreLogin(true); });
   $("cancelaLogin").addEventListener("click", fechaLogin);
-  $("formLogin").addEventListener("submit", function (e) { e.preventDefault(); entrar($("nome").value); });
+  $("abaEntrar").addEventListener("click", function () { setModoLogin("entrar"); });
+  $("abaCriar").addEventListener("click", function () { setModoLogin("criar"); });
+  $("semRanking").addEventListener("click", function () { comecar("offline", "Sem ranking"); });
+  $("formLogin").addEventListener("submit", function (e) { e.preventDefault(); submeteLogin(); });
   window.addEventListener("resize", ajusta);
 
-  jogadores = carregaLocal();
   renderTemas();
   nova();
-  iniciaDb();
 
-  var guardado = normNome(lsGet(LS_ATUAL));
-  if (guardado && !valida(guardado)) { entrar(guardado); }
-  else { abreLogin(false); }
+  // Arranque: sessão guardada (partilhada com o Templo e o Snake) ou pedir login
+  var guardada = RETRO.sessao();
+  if (guardada) {
+    RETRO.validar().then(function (r) {
+      if (r && r.ok) comecar("retro", r.username); else abreLogin(false);
+    }, function () { comecar("retro", guardada.username); }); // sem rede: continua com a sessão guardada
+  } else { abreLogin(false); }
 })();
 </script>
-
 </body>
 </html>
